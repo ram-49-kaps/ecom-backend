@@ -17,14 +17,29 @@ const app = express();
 app.use(express.json());
 
 // CORS configuration
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const allowedOrigins = [
+  "http://localhost:5173",
+  process.env.FRONTEND_URL,
+];
+
 app.use(
   cors({
-    origin: FRONTEND_URL,
-      methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
+    origin: function (origin, callback) {
+      // Allow requests with no origin (e.g., mobile apps, curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        console.log("❌ Blocked by CORS:", origin);
+        return callback(new Error("Not allowed by CORS"), false);
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"],
   })
 );
+
 
 // Base Route
 app.get("/", (req, res) => {
@@ -40,14 +55,19 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Internal Server Error" });
 });
 
-db.connect((err) => {
+db.query("SELECT 1", (err) => {
   if (err) {
-    console.log("DB Connection Failed", err);
+    console.log("❌ DB Connection Failed:", err);
   } else {
-    console.log("MySQL Connected");
-    runSQLSetup(); // AUTO CREATE TABLES
+    console.log("✅ MySQL Connected (Pool)");
+
+    // Only run SQL setup in development
+    if (process.env.NODE_ENV !== "production") {
+      runSQLSetup();
+    }
   }
 });
+
 
 
 // Server Listener
